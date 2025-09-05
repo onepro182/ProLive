@@ -33,7 +33,7 @@
     <select id="league">
       <option value="363">UEFA (Europe)</option>
       <option value="359">CAF (Afrique)</option>
-      <option value="360">CONCACAF (Amérique)</option>
+      <option value="360">CONCACAF (Amérique du Nord, Centrale et Caraïbes)</option>
       <option value="361">CONMEBOL (Amérique du Sud)</option>
       <option value="358">AFC (Asie)</option>
       <option value="364">OFC (Océanie)</option>
@@ -55,6 +55,15 @@ const API_KEY = "637d4720156cd4c3ed34d17adcd4154e"; // Remplace par ta clé API 
 const API_URL = "https://v3.football.api-sports.io/fixtures";
 const REFRESH_INTERVAL = 30000;
 
+const LEAGUE_IDS = {
+  363: { name: "UEFA (Europe)", id: 363 },
+  359: { name: "CAF (Afrique)", id: 359 },
+  360: { name: "CONCACAF (Amérique du Nord, Centrale et Caraïbes)", id: 360 },
+  361: { name: "CONMEBOL (Amérique du Sud)", id: 361 },
+  358: { name: "AFC (Asie)", id: 358 },
+  364: { name: "OFC (Océanie)", id: 364 }
+};
+
 let matchElements = {};
 let previousScores = {};
 
@@ -67,13 +76,12 @@ function localYMD(d = new Date()){
 
 document.getElementById('date').value = localYMD();
 
-// Notification permission
 if("Notification" in window && Notification.permission !== "granted"){
   Notification.requestPermission();
 }
 
-async function fetchMatches(date, league){
-  const params = new URLSearchParams({ date, league, season: new Date().getFullYear() });
+async function fetchMatches(date, leagueId){
+  const params = new URLSearchParams({ date, league: leagueId, season: new Date().getFullYear() });
   const url = `${API_URL}?${params.toString()}`;
   const res = await fetch(url, {
     headers: { "x-apisports-key": API_KEY }
@@ -85,7 +93,7 @@ async function fetchMatches(date, league){
 }
 
 function showNotification(title, text){
-  if(Notification.permission === "granted"){
+  if(Notification.permission==="granted"){
     new Notification(title, { body: text, icon: "https://upload.wikimedia.org/wikipedia/commons/8/80/Football-icon.png" });
   }
 }
@@ -159,12 +167,14 @@ function renderMatches(container, fixtures){
 }
 
 async function loadMatches(){
-  const league = document.getElementById('league').value;
+  const leagueSelect = document.getElementById('league');
+  const leagueId = leagueSelect.value;
+  const leagueName = LEAGUE_IDS[leagueId]?.name || "Confédération inconnue";
   const date = document.getElementById('date').value;
   const container = document.getElementById('matches');
-  container.innerHTML = "<p>Chargement…</p>";
+  container.innerHTML = `<p>Chargement des matchs pour ${leagueName}...</p>`;
   try {
-    const fixtures = await fetchMatches(date, league);
+    const fixtures = await fetchMatches(date, leagueId);
     renderMatches(container, fixtures);
   } catch(err){
     container.innerHTML = `<p>Erreur : ${err.message}</p>`;
@@ -176,10 +186,8 @@ document.getElementById('refresh').addEventListener('click', loadMatches);
 document.getElementById('league').addEventListener('change', loadMatches);
 document.getElementById('date').addEventListener('change', loadMatches);
 
-// auto refresh
 setInterval(loadMatches, REFRESH_INTERVAL);
 
-// initial load
 loadMatches();
 </script>
 
