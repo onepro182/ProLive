@@ -1,165 +1,64 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚽ Matches en Direct - Éliminatoires WC</title>
-<style>
-:root {--bg:#0f1112;--card:#1e2226;--muted:#999;--accent:#ffcc00;}
-body {margin:0;font-family:Arial,sans-serif;background:var(--bg);color:#eee;}
-header {background:#0b0c0d;padding:14px;text-align:center;font-size:18px;font-weight:bold;}
-.controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;justify-content:center;background:#0e1012;}
-select,input,button {font-size:14px;padding:8px;border-radius:6px;border:1px solid #222;background:#0c0d0e;color:#eee;}
-button {background:var(--accent);color:#111;cursor:pointer;}
-button:hover {background:#ffd633;}
-#matches {max-width:980px;margin:12px auto;}
-.league-block {margin-bottom:18px;}
-.league-title {font-weight:700;margin-bottom:8px;}
-.match {background:var(--card);padding:10px;border-radius:10px;margin:8px 0;box-shadow:0 2px 8px rgba(0,0,0,0.4);}
-.match-row {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-.team {display:flex;align-items:center;gap:8px;}
-.team img {width:28px;height:28px;object-fit:contain;border-radius:4px;}
-.score {font-weight:700;color:var(--accent);font-size:1.05rem;}
-.time {color:var(--muted);font-size:13px;margin-top:6px;}
-.progress-container {height:6px;background:#111;border-radius:6px;overflow:hidden;margin-top:8px;}
-.progress-bar {height:6px;background:var(--accent);width:0%;transition:width .4s linear;}
-.notice {text-align:center;color:var(--muted);margin:6px 0;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Éliminatoires Coupe du Monde</title>
+  <style>
+    /* Ajoute ici ton style CSS */
+  </style>
 </head>
 <body>
+  <h1>Éliminatoires Coupe du Monde</h1>
+  <label for="league">Sélectionner une confédération :</label>
+  <select id="league">
+    <option value="363">UEFA (Europe)</option>
+    <option value="359">CAF (Afrique)</option>
+    <option value="360">CONCACAF (Amérique du Nord, Centrale et Caraïbes)</option>
+    <option value="361">CONMEBOL (Amérique du Sud)</option>
+    <option value="358">AFC (Asie)</option>
+    <option value="364">OFC (Océanie)</option>
+  </select>
+  <label for="date">Sélectionner une date :</label>
+  <input type="date" id="date">
+  <button id="loadMatches">Charger les matches</button>
+  <div id="matches"></div>
 
-<header>⚽ Matches en Direct - Éliminatoires Coupe du Monde</header>
+  <script>
+    const API_KEY = '637d4720156cd4c3ed34d17adcd4154e';
+    const API_URL = 'https://v3.football.api-sports.io/fixtures';
 
-<div class="controls">
-  <label>Ligue
-    <select id="league">
-      <option value="all">🌍 Toutes les ligues</option>
-      <option value="39">Premier League</option>
-      <option value="61">Ligue 1</option>
-      <option value="140">La Liga</option>
-      <option value="135">Serie A</option>
-      <option value="78">Bundesliga</option>
-      <option value="2">Champions League</option>
-      <option value="1234">Éliminatoires WC Europe</option>
-      <option value="2345">Éliminatoires WC Afrique</option>
-      <option value="3456">Éliminatoires WC Asie</option>
-      <option value="4567">Éliminatoires WC Amérique du Sud</option>
-      <option value="5678">Éliminatoires WC Amérique du Nord</option>
-    </select>
-  </label>
+    document.getElementById('loadMatches').addEventListener('click', async () => {
+      const leagueId = document.getElementById('league').value;
+      const date = document.getElementById('date').value;
 
-  <label>Date
-    <input type="date" id="date">
-  </label>
+      if (!date) {
+        alert('Veuillez sélectionner une date.');
+        return;
+      }
 
-  <button id="refresh">🔄 Actualiser</button>
-</div>
+      const response = await fetch(`${API_URL}?league=${leagueId}&date=${date}`, {
+        headers: {
+          'x-apisports-key': API_KEY
+        }
+      });
+      const data = await response.json();
 
-<div class="notice">Sélectionne la ligue et la date pour voir les matches en direct.</div>
-
-<div id="matches"></div>
-
-<script>
-const API_KEY = "637d4720156cd4c3ed34d17adcd4154e"; // <-- Remplace par ta clé API valide
-const API_URL = "https://v3.football.api-sports.io/fixtures";
-const REFRESH_INTERVAL = 60000;
-
-const leagueEl = document.getElementById("league");
-const dateEl = document.getElementById("date");
-const refreshBtn = document.getElementById("refresh");
-const matchesEl = document.getElementById("matches");
-
-function localYMD(d = new Date()){
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
-}
-dateEl.value = localYMD();
-
-async function fetchMatches(date, league){
-  const params = new URLSearchParams({date, season: new Date().getFullYear()});
-  if(league && league !== "all") params.set("league", league);
-  const url = `${API_URL}?${params.toString()}`;
-
-  const res = await fetch(url, {
-    headers: { "x-apisports-key": API_KEY }
-  });
-  if (!res.ok) throw new Error(`Erreur API: ${res.status} ${res.statusText}`);
-  const data = await res.json();
-  if(!data.response) return [];
-  return data.response;
-}
-
-function renderMatches(fixtures){
-  matchesEl.innerHTML = "";
-  if(!fixtures || fixtures.length===0){
-    matchesEl.innerHTML = "<div style='padding:12px;color:#ccc'>Aucun match trouvé pour cette ligue / date.</div>";
-    return;
-  }
-
-  const grouped = fixtures.reduce((acc, f) => {
-    const key = `${f.league?.name || "?"} (${f.league?.country || "?"})`;
-    (acc[key] = acc[key] || []).push(f);
-    return acc;
-  }, {});
-
-  for(const leagueName of Object.keys(grouped)){
-    const block = document.createElement("div");
-    block.className = "league-block";
-    const title = document.createElement("div");
-    title.className = "league-title";
-    title.textContent = leagueName;
-    block.appendChild(title);
-
-    grouped[leagueName].forEach(fix => {
-      const match = document.createElement("div");
-      match.className = "match";
-      const homeName = fix.teams.home.name;
-      const awayName = fix.teams.away.name;
-      const homeLogo = fix.teams.home.logo || "https://via.placeholder.com/32";
-      const awayLogo = fix.teams.away.logo || "https://via.placeholder.com/32?text=A";
-      const homeScore = (fix.goals.home===null)? "-":fix.goals.home;
-      const awayScore = (fix.goals.away===null)? "-":fix.goals.away;
-      const elapsed = fix.fixture?.status?.elapsed;
-      const statusLong = fix.fixture?.status?.long || fix.fixture?.status?.short || "";
-      const timeText = elapsed ? `${elapsed}' • ${statusLong}` : statusLong;
-      const progress = elapsed ? Math.min(Number(elapsed),100) : 0;
-
-      match.innerHTML = `
-        <div class="match-row">
-          <div class="team"><img src="${homeLogo}" alt="${homeName}"><div>${homeName}</div></div>
-          <div class="score">${homeScore} - ${awayScore}</div>
-          <div class="team" style="justify-content:flex-end"><div>${awayName}</div><img src="${awayLogo}" alt="${awayName}"></div>
-        </div>
-        <div class="time">${timeText}</div>
-        <div class="progress-container"><div class="progress-bar" style="width:${progress}%"></div></div>
-      `;
-      block.appendChild(match);
+      if (data.response && data.response.length > 0) {
+        const matches = data.response.map(match => {
+          return `
+            <div>
+              <h3>${match.teams.home.name} vs ${match.teams.away.name}</h3>
+              <p>${match.fixture.date}</p>
+              <p>Score: ${match.goals.home} - ${match.goals.away}</p>
+            </div>
+          `;
+        }).join('');
+        document.getElementById('matches').innerHTML = matches;
+      } else {
+        document.getElementById('matches').innerHTML = 'Aucun match trouvé pour cette date et cette confédération.';
+      }
     });
-
-    matchesEl.appendChild(block);
-  }
-}
-
-async function loadMatches(){
-  matchesEl.innerHTML = "<div style='padding:10px;color:#aaa'>Chargement…</div>";
-  const leagueId = leagueEl.value;
-  const date = dateEl.value;
-  try{
-    const fixtures = await fetchMatches(date, leagueId);
-    renderMatches(fixtures);
-  }catch(e){
-    console.error(e);
-    matchesEl.innerHTML = `<div style="padding:12px;color:#ff6b6b">Erreur : ${e.message}</div>`;
-  }
-}
-
-leagueEl.addEventListener("change", loadMatches);
-dateEl.addEventListener("change", loadMatches);
-refreshBtn.addEventListener("click", loadMatches);
-
-loadMatches();
-setInterval(loadMatches, REFRESH_INTERVAL);
-</script>
-
+  </script>
 </body>
 </html>
