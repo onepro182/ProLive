@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>⚽ Matches en Direct — Debug</title>
+<style>
+  :root{--bg:#0f1112;--card:#1e2226;--muted:#999;--accent:#ffcc00}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:var(--bg);color:#eee}
+  header{background:#0b0c0d;padding:14px;text-align:center;border-bottom:1px solid #121314}
+  h1{margin:0;font-size:18px}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;justify-content:center;background:#0e1012;border-bottom:1px solid #161718}
+  select,input,button,label{font-size:14px}
+  select,input{padding:8px;border-radius:6px;border:1px solid #222;background:#0c0d0e;color:#eee}
+  button{padding:8px 12px;border-radius:6px;border:none;background:var(--accent);color:#111;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid #333;color:#eee}
+  .toggles{display:flex;gap:6px}
+  main{padding:12px}
+  .notice{color:var(--muted);text-align:center;margin:8px 0}
+  #matches{display:block;max-width:980px;margin:12px auto}
+  .league-block{margin-bottom:18px}
+  .league-title{font-weight:700;margin-bottom:8px}
+  .match{background:var(--card);padding:10px;border-radius:10px;margin:8px 0;box-shadow:0 2px 8px rgba(0,0,0,0.4)}
+  .match-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .team{display:flex;align-items:center;gap:8px}
+  .team img{width:28px;height:28px;object-fit:contain;border-radius:4px}
+  .score{font-weight:700;color:var(--accent);font-size:1.05rem}
+  .time{color:var(--muted);font-size:13px;margin-top:6px}
+  .progress-container{height:6px;background:#111;border-radius:6px;overflow:hidden;margin-top:8px}
+  .progress-bar{height:6px;background:var(--accent);width:0%;transition:width .4s linear}
+  .debug{background:#071;display:none}
+  .panel{max-width:980px;margin:12px auto;padding:10px;background:#0b0c0d;border:1px solid #151617;border-radius:8px;color:var(--muted);font-size:13px}
+  .panel small{color:#8d8d8d}
+  .error{color:#ff6b6b}
+  .ok{color:#7fe07f}
+  .actions{display:flex;gap:8px;align-items:center}
+  .demo-toggle{display:flex;align-items:center;gap:6px;color:var(--muted)}
+  @media (max-width:600px){ .match-row{flex-direction:column;align-items:flex-start} }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ Matches en Direct — Vérification & debug</h1>
+</header>
+
+<div class="controls">
+  <label>
+    Ligue
+    <select id="league">
+      <option value="all">🌍 Toutes les ligues</option>
+      <option value="39">Premier League</option>
+      <option value="61">Ligue 1</option>
+      <option value="140">La Liga</option>
+      <option value="135">Serie A</option>
+      <option value="78">Bundesliga</option>
+      <option value="2">Champions League</option>
+      <option value="3">Europa League</option>
+      <option value="848">Europa Conference</option>
+      <option value="999">Ecureu Cup</option>
+    </select>
+  </label>
+
+  <label>
+    Date
+    <input type="date" id="date">
+  </label>
+
+  <div class="actions">
+    <button id="todayBtn" class="ghost">Aujourd'hui</button>
+    <button id="tomorrowBtn" class="ghost">Demain</button>
+    <button id="refresh">🔄 Actualiser</button>
+    <label class="demo-toggle"><input type="checkbox" id="useDemo"> Utiliser données de démo</label>
+  </div>
+</div>
+
+<main>
+  <div class="notice">Si tu vois « <strong>Aucun match trouvé</strong> », vérifie : <em>date</em>, <em>ligue</em>, <em>clé API</em> et <em>CORS</em> (si tu ouvres localement → utiliser serveur/proxy).</div>
+
+  <div id="matches" aria-live="polite"></div>
+
+  <div class="panel" id="panel">
+    <div><small>Debug :</small></div>
+    <div id="debugStatus">—</div>
+    <pre id="debugRaw" style="display:none;white-space:pre-wrap;margin-top:8px;max-height:240px;overflow:auto"></pre>
+    <div style="margin-top:8px">
+      <button id="showRaw" class="ghost">Afficher réponse brute</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const API_KEY = "637d4720156cd4c3ed34d17adcd4154e";
+const API_URL = "https://v3.football.api-sports.io/fixtures";
+const REFRESH_INTERVAL = 60000;
+
+const $ = id => document.getElementById(id);
+
+function localYMD(d = new Date()){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+const leagueEl = $("league");
+const dateEl = $("date");
+const refreshBtn = $("refresh");
+const matchesEl = $("matches");
+const debugStatusEl = $("debugStatus");
+const debugRawEl = $("debugRaw");
+const showRawBtn = $("showRaw");
+const useDemoEl = $("useDemo");
+
+dateEl.value = localYMD();
+
+$("todayBtn").addEventListener("click", ()=>{ dateEl.value = localYMD(); loadMatches(); });
+$("tomorrowBtn").addEventListener("click", ()=>{ const t = new Date(); t.setDate(t.getDate()+1); dateEl.value = localYMD(t); loadMatches(); });
+
+refreshBtn.addEventListener("click", ()=>{ loadMatches(true); });
+showRawBtn.addEventListener("click", ()=>{ debugRawEl.style.display = debugRawEl.style.display === "none" ? "block" : "none"; });
+
+const DEMO_MATCHES = [
+  {
+    league: { name: "Demo League", country: "Nowhere" },
+    fixture: { id: 1, date: new Date().toISOString(), status:{ short:"NS", long:"Not started", elapsed:null } },
+    teams: { home:{ name:"Demo FC", logo:"https://via.placeholder.com/32" }, away:{ name:"Sample United", logo:"https://via.placeholder.com/32?text=S" } },
+    goals: { home:null, away:null }
+  },
+  {
+    league: { name: "Demo League", country: "Nowhere" },
+    fixture: { id: 2, date: new Date().toISOString(), status:{ short:"1H", long:"First Half", elapsed:23 } },
+    teams: { home:{ name:"Alpha", logo:"https://via.placeholder.com/32?text=A" }, away:{ name:"Beta", logo:"https://via.placeholder.com/32?text=B" } },
+    goals: { home:1, away:0 }
+  }
+];
+
+async function fetchMatches(date, league) {
+  const trimmedKey = (API_KEY || "").trim();
+  if (!trimmedKey) {
+    throw { type:"nomatch", message: "Clé API absente." };
+  }
+
+  const params = new URLSearchParams({ date, season: new Date().getFullYear() });
+  if (league && league !== "all") params.set("league", league);
+  const url = `${API_URL}?${params.toString()}`;
+
+  debugStatusEl.textContent = `Requête → ${url}`;
+  try {
+    const res = await fetch(url, {
+      headers: { "x-apisports-key": trimmedKey, "accept": "application/json" }
+    });
+
+    debugStatusEl.textContent = `HTTP ${res.status} ${res.statusText} — ${url}`;
+
+    if (res.status === 401 || res.status === 403) {
+      const txt = await res.text().catch(()=> ""); 
+      throw { type:"auth", code: res.status, message: "Clé API invalide ou non autorisée", raw: txt };
+    }
+    if (res.status === 429) {
+      throw { type:"rate", code:429, message: "Limite de requêtes atteinte (429)" };
+    }
+    if (!res.ok) {
+      const txt = await res.text().catch(()=> "");
+      throw { type:"http", code: res.status, message: `Erreur HTTP ${res.status}`, raw: txt };
+    }
+
+    const json = await res.json();
+    debugRawEl.textContent = JSON.stringify(json, null, 2);
+
+    // ✅ Correction ici : ignorer erreurs vides
+    if (json && json.errors && Object.keys(json.errors).length > 0) {
+      throw { type:"api", message: "L'API a renvoyé une erreur.", raw: json.errors };
+    }
+
+    return json;
+  } catch (err) {
+    if (err && err.type) throw err;
+    throw { type:"network", message: err.message || String(err), raw: err };
+  }
+}
+
+function renderMatches(container, fixtures) {
+  container.innerHTML = "";
+  if (!fixtures || fixtures.length === 0) {
+    container.innerHTML = `<div style="padding:12px;color:#ccc">Aucun match trouvé.</div>`;
+    return;
+  }
+
+  const grouped = fixtures.reduce((acc, f) => {
+    const key = `${f.league?.name || "?"} (${f.league?.country || "?"})`;
+    (acc[key] = acc[key] || []).push(f);
+    return acc;
+  }, {});
+
+  for (const leagueName of Object.keys(grouped)) {
+    const block = document.createElement("div");
+    block.className = "league-block";
+    const title = document.createElement("div");
+    title.className = "league-title";
+    title.textContent = leagueName;
+    block.appendChild(title);
+
+    grouped[leagueName].forEach(fix => {
+      const match = document.createElement("div");
+      match.className = "match";
+
+      const homeName = fix.teams.home.name;
+      const awayName = fix.teams.away.name;
+      const homeLogo = fix.teams.home.logo || "https://via.placeholder.com/32";
+      const awayLogo = fix.teams.away.logo || "https://via.placeholder.com/32?text=A";
+      const homeScore = (fix.goals.home === null || fix.goals.home === undefined) ? "-" : fix.goals.home;
+      const awayScore = (fix.goals.away === null || fix.goals.away === undefined) ? "-" : fix.goals.away;
+      const elapsed = fix.fixture?.status?.elapsed;
+      const statusLong = fix.fixture?.status?.long || fix.fixture?.status?.short || "";
+      const timeText = elapsed ? `${elapsed}' • ${statusLong}` : statusLong;
+      const progress = elapsed ? Math.min(Number(elapsed), 100) : 0;
+
+      match.innerHTML = `
+        <div class="match-row">
+          <div class="team"><img src="${homeLogo}" alt="${homeName}"><div>${homeName}</div></div>
+          <div class="score">${homeScore} - ${awayScore}</div>
+          <div class="team" style="justify-content:flex-end"><div>${awayName}</div><img src="${awayLogo}" alt="${awayName}"></div>
+        </div>
+        <div class="time">${timeText}</div>
+        <div class="progress-container"><div class="progress-bar" style="width:${progress}%"></div></div>
+      `;
+      block.appendChild(match);
+    });
+
+    matchesEl.appendChild(block);
+  }
+}
+
+async function loadMatches(force = false) {
+  matchesEl.innerHTML = `<div style="padding:10px;color:#aaa">Chargement…</div>`;
+  debugRawEl.style.display = "none";
+  debugStatusEl.textContent = "Envoi de la requête…";
+
+  const league = leagueEl.value;
+  const date = dateEl.value || localYMD();
+
+  if (useDemoEl.checked) {
+    debugStatusEl.textContent = "Mode demo actif — affichage des données fictives.";
+    debugRawEl.textContent = JSON.stringify({ demo: DEMO_MATCHES }, null, 2);
+    renderMatches(matchesEl, DEMO_MATCHES);
+    debugRawEl.style.display = "block";
+    return;
+  }
+
+  try {
+    const json = await fetchMatches(date, league);
+    const fixtures = (json && (json.response || json.fixtures)) || [];
+    if (!fixtures || fixtures.length === 0) {
+      debugStatusEl.innerHTML = `<span class="error">Aucun match renvoyé par l'API pour ${date} / ligue ${league}.</span>`;
+      debugRawEl.textContent = JSON.stringify(json, null, 2);
+      debugRawEl.style.display = "block";
+      matchesEl.innerHTML = `<div style="padding:12px;color:#ccc">Aucun match trouvé pour ${date}. Essaie Aujourd'hui/Demain ou <strong>Utiliser données de démo</strong>.</div>`;
+      return;
+    }
+
+    debugStatusEl.innerHTML = `<span class="ok">Réponse OK — ${fixtures.length} match(s) récupéré(s).</span>`;
+    debugRawEl.textContent = JSON.stringify(json, null, 2);
+    renderMatches(matchesEl, fixtures);
+  } catch (err) {
+    console.error("Erreur loadMatches:", err);
+    debugRawEl.textContent = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
+    debugRawEl.style.display = "block";
+
+    if (err.type === "auth") {
+      debugStatusEl.innerHTML = `<span class="error">Authentification : clé API invalide ou non autorisée (401/403).</span>`;
+      matchesEl.innerHTML = `<div style="padding:12px;color:#ff6b6b">Clé invalide ou non autorisée. Vérifie ta clé et ton quota.</div>`;
+      return;
+    }
+    if (err.type === "rate") {
+      debugStatusEl.innerHTML = `<span class="error">Quota dépassé / rate limit (429).</span>`;
+      matchesEl.innerHTML = `<div style="padding:12px;color:#ff6b6b">Quota dépassé (429). Attends ou vérifie ton plan API.</div>`;
+      return;
+    }
+    if (err.type === "nomatch
