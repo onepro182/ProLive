@@ -2,105 +2,107 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>⚽ Matches en Direct</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚽ Matches en Direct - Éliminatoires WC</title>
 <style>
-body {margin:0;font-family:Arial,sans-serif;background:#111;color:#eee;}
-header {background:#222;padding:15px;text-align:center;font-size:22px;font-weight:bold;}
-.controls {display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:10px;background:#1b1b1b;}
-select,input,button {padding:8px;border-radius:6px;font-size:14px;}
-button {background:#ffcc00;font-weight:bold;cursor:pointer;border:none;}
-button:hover {background:#ffdd33;}
+:root {--bg:#0f1112;--card:#1e2226;--muted:#999;--accent:#ffcc00;}
+body {margin:0;font-family:Arial,sans-serif;background:var(--bg);color:#eee;}
+header {background:#0b0c0d;padding:14px;text-align:center;font-size:18px;font-weight:bold;}
+.controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;justify-content:center;background:#0e1012;}
+select,input,button {font-size:14px;padding:8px;border-radius:6px;border:1px solid #222;background:#0c0d0e;color:#eee;}
+button {background:var(--accent);color:#111;cursor:pointer;}
+button:hover {background:#ffd633;}
 #matches {max-width:980px;margin:12px auto;}
 .league-block {margin-bottom:18px;}
 .league-title {font-weight:700;margin-bottom:8px;}
-.match {background:#1e1e1e;padding:12px;border-radius:10px;margin:8px 0;box-shadow:0 2px 6px rgba(0,0,0,0.5);}
-.match-row {display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
-.team {display:flex;align-items:center;gap:6px;}
+.match {background:var(--card);padding:10px;border-radius:10px;margin:8px 0;box-shadow:0 2px 8px rgba(0,0,0,0.4);}
+.match-row {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.team {display:flex;align-items:center;gap:8px;}
 .team img {width:28px;height:28px;object-fit:contain;border-radius:4px;}
-.score {font-weight:700;color:#ffcc00;font-size:1.05rem;}
-.time {color:#999;font-size:13px;margin-top:6px;}
+.score {font-weight:700;color:var(--accent);font-size:1.05rem;}
+.time {color:var(--muted);font-size:13px;margin-top:6px;}
 .progress-container {height:6px;background:#111;border-radius:6px;overflow:hidden;margin-top:8px;}
-.progress-bar {height:6px;background:#ffcc00;width:0%;transition:width .4s linear;}
-.notice {text-align:center;color:#aaa;margin:8px;}
+.progress-bar {height:6px;background:var(--accent);width:0%;transition:width .4s linear;}
+.notice {text-align:center;color:var(--muted);margin:6px 0;}
 </style>
 </head>
 <body>
-<header>⚽ Matches en Direct</header>
+
+<header>⚽ Matches en Direct - Éliminatoires Coupe du Monde</header>
 
 <div class="controls">
-<label>Ligue
-<select id="league">
-<option value="all">🌍 Toutes les ligues</option>
-<option value="39">Premier League</option>
-<option value="61">Ligue 1</option>
-<option value="140">La Liga</option>
-<option value="135">Serie A</option>
-<option value="78">Bundesliga</option>
-<option value="2">Champions League</option>
-<option value="3">Europa League</option>
-<option value="848">Europa Conference</option>
-<!-- Éliminatoires Coupe du monde -->
-<option value="9991">Éliminatoires CM Europe (UEFA)</option>
-<option value="9992">Éliminatoires CM Afrique (CAF)</option>
-<option value="9993">Éliminatoires CM Asie (AFC)</option>
-<option value="9994">Éliminatoires CM Amérique du Nord (CONCACAF)</option>
-<option value="9995">Éliminatoires CM Amérique du Sud (CONMEBOL)</option>
-</select>
-</label>
+  <label>Ligue
+    <select id="league">
+      <option value="all">🌍 Toutes les ligues</option>
+      <option value="39">Premier League</option>
+      <option value="61">Ligue 1</option>
+      <option value="140">La Liga</option>
+      <option value="135">Serie A</option>
+      <option value="78">Bundesliga</option>
+      <option value="2">Champions League</option>
+      <option value="1234">Éliminatoires WC Europe</option>
+      <option value="2345">Éliminatoires WC Afrique</option>
+      <option value="3456">Éliminatoires WC Asie</option>
+      <option value="4567">Éliminatoires WC Amérique du Sud</option>
+      <option value="5678">Éliminatoires WC Amérique du Nord</option>
+    </select>
+  </label>
 
-<label>Date <input type="date" id="date"></label>
-<button id="refresh">🔄 Actualiser</button>
+  <label>Date
+    <input type="date" id="date">
+  </label>
+
+  <button id="refresh">🔄 Actualiser</button>
 </div>
 
-<div class="notice">Si aucun match n’apparaît, vérifie la date ou la ligue choisie.</div>
+<div class="notice">Sélectionne la ligue et la date pour voir les matches en direct.</div>
+
 <div id="matches"></div>
 
 <script>
-const API_KEY = "637d4720156cd4c3ed34d17adcd4154e"; // <-- Mets ta clé API ici
+const API_KEY = "637d4720156cd4c3ed34d17adcd4154e"; // <-- Remplace par ta clé API valide
 const API_URL = "https://v3.football.api-sports.io/fixtures";
 const REFRESH_INTERVAL = 60000;
 
-// IDs spéciaux pour les éliminatoires
-const SPECIAL_LEAGUES = {
-  "9991": 2000, // UEFA - Europe
-  "9992": 2001, // CAF - Afrique
-  "9993": 2002, // AFC - Asie
-  "9994": 2003, // CONCACAF - Amérique du Nord
-  "9995": 2004, // CONMEBOL - Amérique du Sud
-};
-
 const leagueEl = document.getElementById("league");
 const dateEl = document.getElementById("date");
-const matchesEl = document.getElementById("matches");
 const refreshBtn = document.getElementById("refresh");
+const matchesEl = document.getElementById("matches");
 
-function localYMD(d=new Date()) {
+function localYMD(d = new Date()){
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${day}`;
 }
-
 dateEl.value = localYMD();
 
-async function fetchMatches(date, league) {
-  let leagueId = SPECIAL_LEAGUES[league] || league;
-  const params = new URLSearchParams({ date, season: new Date().getFullYear() });
-  if (leagueId !== "all") params.set("league", leagueId);
+async function fetchMatches(date, league){
+  const params = new URLSearchParams({date, season: new Date().getFullYear()});
+  if(league && league !== "all") params.set("league", league);
   const url = `${API_URL}?${params.toString()}`;
-  const res = await fetch(url, { headers: {"x-apisports-key":API_KEY} });
-  if (!res.ok) throw new Error(`Erreur API ${res.status}`);
-  const json = await res.json();
-  return json.response || [];
+
+  const res = await fetch(url, {
+    headers: { "x-apisports-key": API_KEY }
+  });
+  if (!res.ok) throw new Error(`Erreur API: ${res.status} ${res.statusText}`);
+  const data = await res.json();
+  if(!data.response) return [];
+  return data.response;
 }
 
-function renderMatches(fixtures) {
+function renderMatches(fixtures){
   matchesEl.innerHTML = "";
-  if (!fixtures.length) {
-    matchesEl.innerHTML = `<div style="padding:12px;color:#ccc">Aucun match trouvé pour cette date/ligue.</div>`;
+  if(!fixtures || fixtures.length===0){
+    matchesEl.innerHTML = "<div style='padding:12px;color:#ccc'>Aucun match trouvé pour cette ligue / date.</div>";
     return;
   }
-  const grouped = fixtures.reduce((acc,f)=>{const key=f.league?.name||"Autres"; (acc[key]=acc[key]||[]).push(f); return acc;}, {});
-  for (const leagueName of Object.keys(grouped)) {
+
+  const grouped = fixtures.reduce((acc, f) => {
+    const key = `${f.league?.name || "?"} (${f.league?.country || "?"})`;
+    (acc[key] = acc[key] || []).push(f);
+    return acc;
+  }, {});
+
+  for(const leagueName of Object.keys(grouped)){
     const block = document.createElement("div");
     block.className = "league-block";
     const title = document.createElement("div");
@@ -108,49 +110,56 @@ function renderMatches(fixtures) {
     title.textContent = leagueName;
     block.appendChild(title);
 
-    grouped[leagueName].forEach(fix=>{
+    grouped[leagueName].forEach(fix => {
       const match = document.createElement("div");
       match.className = "match";
-      const home=fix.teams.home.name, away=fix.teams.away.name;
-      const homeLogo=fix.teams.home.logo||"https://via.placeholder.com/32";
-      const awayLogo=fix.teams.away.logo||"https://via.placeholder.com/32?text=A";
-      const homeScore=fix.goals.home===null?"-":fix.goals.home;
-      const awayScore=fix.goals.away===null?"-":fix.goals.away;
-      const elapsed=fix.fixture.status.elapsed;
-      const status=fix.fixture.status.long||fix.fixture.status.short||"";
-      const timeText=elapsed?`${elapsed}' • ${status}`:status;
-      const progress=elapsed?Math.min(elapsed,100):0;
+      const homeName = fix.teams.home.name;
+      const awayName = fix.teams.away.name;
+      const homeLogo = fix.teams.home.logo || "https://via.placeholder.com/32";
+      const awayLogo = fix.teams.away.logo || "https://via.placeholder.com/32?text=A";
+      const homeScore = (fix.goals.home===null)? "-":fix.goals.home;
+      const awayScore = (fix.goals.away===null)? "-":fix.goals.away;
+      const elapsed = fix.fixture?.status?.elapsed;
+      const statusLong = fix.fixture?.status?.long || fix.fixture?.status?.short || "";
+      const timeText = elapsed ? `${elapsed}' • ${statusLong}` : statusLong;
+      const progress = elapsed ? Math.min(Number(elapsed),100) : 0;
 
-      match.innerHTML=`
+      match.innerHTML = `
         <div class="match-row">
-          <div class="team"><img src="${homeLogo}" alt="${home}"><div>${home}</div></div>
+          <div class="team"><img src="${homeLogo}" alt="${homeName}"><div>${homeName}</div></div>
           <div class="score">${homeScore} - ${awayScore}</div>
-          <div class="team" style="justify-content:flex-end"><div>${away}</div><img src="${awayLogo}" alt="${away}"></div>
+          <div class="team" style="justify-content:flex-end"><div>${awayName}</div><img src="${awayLogo}" alt="${awayName}"></div>
         </div>
         <div class="time">${timeText}</div>
         <div class="progress-container"><div class="progress-bar" style="width:${progress}%"></div></div>
       `;
       block.appendChild(match);
     });
+
     matchesEl.appendChild(block);
   }
 }
 
-async function loadMatches() {
-  matchesEl.innerHTML = `<div style="padding:10px;color:#aaa">Chargement…</div>`;
-  try {
-    const fixtures = await fetchMatches(dateEl.value, leagueEl.value);
+async function loadMatches(){
+  matchesEl.innerHTML = "<div style='padding:10px;color:#aaa'>Chargement…</div>";
+  const leagueId = leagueEl.value;
+  const date = dateEl.value;
+  try{
+    const fixtures = await fetchMatches(date, leagueId);
     renderMatches(fixtures);
-  } catch(err) {
-    matchesEl.innerHTML = `<div style="padding:12px;color:#f66">Erreur API : ${err.message}</div>`;
+  }catch(e){
+    console.error(e);
+    matchesEl.innerHTML = `<div style="padding:12px;color:#ff6b6b">Erreur : ${e.message}</div>`;
   }
 }
 
 leagueEl.addEventListener("change", loadMatches);
 dateEl.addEventListener("change", loadMatches);
 refreshBtn.addEventListener("click", loadMatches);
-setInterval(loadMatches, REFRESH_INTERVAL);
+
 loadMatches();
+setInterval(loadMatches, REFRESH_INTERVAL);
 </script>
+
 </body>
 </html>
