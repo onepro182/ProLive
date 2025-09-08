@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Éliminatoires Coupe du Monde Live</title>
+  <title>⚽ Football Live Matches</title>
   <style>
     body { font-family: sans-serif; background: #111; color: #eee; margin: 0; padding: 0; }
     header { background: #222; text-align: center; padding: 15px; font-size: 20px; font-weight: bold; }
@@ -25,18 +25,13 @@
 </head>
 <body>
 
-<header>⚽ Éliminatoires Coupe du Monde Live</header>
+<header>⚽ Football Live Matches</header>
 
 <div class="controls">
   <label>
-    Confédération
+    Ligue
     <select id="league">
-      <option value="363">UEFA (Europe)</option>
-      <option value="359">CAF (Afrique)</option>
-      <option value="360">CONCACAF (Amérique du Nord, Centrale et Caraïbes)</option>
-      <option value="361">CONMEBOL (Amérique du Sud)</option>
-      <option value="358">AFC (Asie)</option>
-      <option value="364">OFC (Océanie)</option>
+      <option value="all">🌍 Toutes les ligues</option>
     </select>
   </label>
   <label>
@@ -51,53 +46,64 @@
 <audio id="goalSound" src="https://www.soundjay.com/notification/sounds/goal-1.mp3" preload="auto"></audio>
 
 <script>
-const API_KEY = "637d4720156cd4c3ed34d17adcd4154e"; // Remplace par ta clé API Football
+const API_KEY = "637d4720156cd4c3ed34d17adcd4154e"; // 🔑 Mets ta clé API
 const API_URL = "https://v3.football.api-sports.io/fixtures";
+const LEAGUE_URL = "https://v3.football.api-sports.io/leagues";
 const REFRESH_INTERVAL = 30000;
-
-const LEAGUE_IDS = {
-  363: { name: "UEFA (Europe)", id: 363 },
-  359: { name: "CAF (Afrique)", id: 359 },
-  360: { name: "CONCACAF (Amérique du Nord, Centrale et Caraïbes)", id: 360 },
-  361: { name: "CONMEBOL (Amérique du Sud)", id: 361 },
-  358: { name: "AFC (Asie)", id: 358 },
-  364: { name: "OFC (Océanie)", id: 364 }
-};
 
 let matchElements = {};
 let previousScores = {};
 
 function localYMD(d = new Date()){
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
+  return d.toISOString().split("T")[0];
 }
+document.getElementById("date").value = localYMD();
 
-document.getElementById('date').value = localYMD();
-
+// Notifications
 if("Notification" in window && Notification.permission !== "granted"){
   Notification.requestPermission();
 }
 
-async function fetchMatches(date, leagueId){
-  const params = new URLSearchParams({ date, league: leagueId, season: new Date().getFullYear() });
-  const url = `${API_URL}?${params.toString()}`;
-  const res = await fetch(url, {
-    headers: { "x-apisports-key": API_KEY }
-  });
-  if(!res.ok) throw new Error(`API erreur ${res.status}`);
-  const data = await res.json();
-  if(!data.response) return [];
-  return data.response;
+// Charger toutes les ligues dans le menu
+async function loadLeagues(){
+  try {
+    const res = await fetch(LEAGUE_URL, { headers: { "x-apisports-key": API_KEY } });
+    const data = await res.json();
+    const select = document.getElementById("league");
+
+    if(data.response && data.response.length){
+      data.response.forEach(l => {
+        const opt = document.createElement("option");
+        opt.value = l.league.id;
+        opt.textContent = `${l.league.name} (${l.country.name})`;
+        select.appendChild(opt);
+      });
+    }
+  } catch(err){
+    console.error("Erreur chargement ligues:", err);
+  }
 }
 
+// Récupérer les matchs
+async function fetchMatches(date, leagueId){
+  const params = new URLSearchParams({ date, season: new Date().getFullYear() });
+  if(leagueId && leagueId !== "all") params.set("league", leagueId);
+  const url = `${API_URL}?${params.toString()}`;
+
+  const res = await fetch(url, { headers: { "x-apisports-key": API_KEY } });
+  if(!res.ok) throw new Error(`API erreur ${res.status}`);
+  const data = await res.json();
+  return data.response || [];
+}
+
+// Affichage notification + son
 function showNotification(title, text){
   if(Notification.permission==="granted"){
     new Notification(title, { body: text, icon: "https://upload.wikimedia.org/wikipedia/commons/8/80/Football-icon.png" });
   }
 }
 
+// Rendu HTML
 function renderMatches(container, fixtures){
   container.innerHTML = "";
   if(fixtures.length === 0){
@@ -112,12 +118,9 @@ function renderMatches(container, fixtures){
   }, {});
 
   for(const leagueName in grouped){
-    const block = document.createElement('div');
+    const block = document.createElement("div");
     block.className = "league-block";
-    const title = document.createElement('div');
-    title.className = "league-title";
-    title.textContent = leagueName;
-    block.appendChild(title);
+    block.innerHTML = `<div class="league-title">${leagueName}</div>`;
 
     grouped[leagueName].forEach(fix => {
       const id = "match-" + fix.fixture.id;
@@ -129,22 +132,22 @@ function renderMatches(container, fixtures){
       const awayLogo = fix.teams.away.logo || "https://via.placeholder.com/28";
       const homeScore = fix.goals.home ?? "-";
       const awayScore = fix.goals.away ?? "-";
-      const elapsed = fix.fixture.status.elapsed;
-      const status = elapsed ? `${elapsed}' • ${fix.fixture.status.long}` : fix.fixture.status.long;
+      const status = fix.fixture.status.elapsed ? 
+        `${fix.fixture.status.elapsed}' • ${fix.fixture.status.long}` : 
+        fix.fixture.status.long;
 
       if(div){
         const scoreEl = div.querySelector(".score");
         if(scoreEl.textContent !== `${homeScore} - ${awayScore}`){
           scoreEl.textContent = `${homeScore} - ${awayScore}`;
           scoreEl.classList.add("pop");
-          div.classList.add("match-pop");
-          setTimeout(() => { scoreEl.classList.remove("pop"); div.classList.remove("match-pop"); }, 500);
+          setTimeout(()=>{ scoreEl.classList.remove("pop"); }, 500);
           document.getElementById("goalSound").play();
           showNotification("But !", `${homeName} ${homeScore} - ${awayScore} ${awayName}`);
         }
         div.querySelector(".time").textContent = status;
       } else {
-        div = document.createElement('div');
+        div = document.createElement("div");
         div.className = "match";
         div.id = id;
         div.innerHTML = `
@@ -156,7 +159,7 @@ function renderMatches(container, fixtures){
           <div class="time">${status}</div>
         `;
         matchElements[id] = div;
-        container.appendChild(div);
+        block.appendChild(div);
       }
 
       previousScores[id] = `${homeScore} - ${awayScore}`;
@@ -166,13 +169,13 @@ function renderMatches(container, fixtures){
   }
 }
 
+// Charger les matchs
 async function loadMatches(){
-  const leagueSelect = document.getElementById('league');
-  const leagueId = leagueSelect.value;
-  const leagueName = LEAGUE_IDS[leagueId]?.name || "Confédération inconnue";
-  const date = document.getElementById('date').value;
-  const container = document.getElementById('matches');
-  container.innerHTML = `<p>Chargement des matchs pour ${leagueName}...</p>`;
+  const leagueId = document.getElementById("league").value;
+  const date = document.getElementById("date").value;
+  const container = document.getElementById("matches");
+  container.innerHTML = `<p>Chargement...</p>`;
+
   try {
     const fixtures = await fetchMatches(date, leagueId);
     renderMatches(container, fixtures);
@@ -182,13 +185,16 @@ async function loadMatches(){
   }
 }
 
-document.getElementById('refresh').addEventListener('click', loadMatches);
-document.getElementById('league').addEventListener('change', loadMatches);
-document.getElementById('date').addEventListener('change', loadMatches);
+// Events
+document.getElementById("refresh").addEventListener("click", loadMatches);
+document.getElementById("league").addEventListener("change", loadMatches);
+document.getElementById("date").addEventListener("change", loadMatches);
 
+// Auto refresh
 setInterval(loadMatches, REFRESH_INTERVAL);
 
-loadMatches();
+// Initialisation
+loadLeagues().then(loadMatches);
 </script>
 
 </body>
